@@ -1,3 +1,5 @@
+import random
+
 class CPU:
     def __init__(self):
         self.registers = [0] * 16
@@ -5,6 +7,14 @@ class CPU:
         self.index_register = 0
         self.stack = [0] * 16
         self.stack_pointer = 0
+        self.delay_timer = 0
+        self.sound_timer = 0
+
+    def update_timers(self):
+        if self.delay_timer > 0:
+            self.delay_timer -= 1
+        if self.sound_timer > 0:
+            self.sound_timer -= 1
 
     def fetch(self, memory):
         instruction = (memory[self.program_counter] << 8) | memory[self.program_counter + 1]
@@ -122,7 +132,7 @@ class CPU:
             'last_nibble': last_nibble
         }
 
-    def execute(self, decoded_instruction, memory, display):
+    def execute(self, decoded_instruction, memory, display, keys):
         opcode = decoded_instruction['opcode']
         VX = decoded_instruction['x_register']
         VY = decoded_instruction['y_register']
@@ -134,13 +144,16 @@ class CPU:
             display.clear()
 
         elif opcode == '00EE':  # Return from subroutine
-            pass
+            self.stack_pointer -= 1
+            self.program_counter = self.stack[self.stack_pointer]
 
         elif opcode == '1NNN':  # Jump to address NNN
             self.program_counter = address
 
         elif opcode == '2NNN':  # Call subroutine at NNN
-            pass
+            self.stack[self.stack_pointer] = self.program_counter
+            self.stack_pointer += 1
+            self.program_counter = address
 
         elif opcode == '3XNN':  # Skip next instruction if VX == NN
             if self.registers[VX] == last_byte:
@@ -183,13 +196,16 @@ class CPU:
             self.registers[VX] = result & 0xFF
 
         elif opcode == '8XY6':  # Shift VX right by 1
-            pass
+            self.registers[0xF] = self.registers[VX] & 0x1
+            self.registers[VX] >>= 1
 
         elif opcode == '8XY7':  # Set VX to VY - VX
-            pass
+            self.registers[0xF] = 1 if self.registers[VY] >= self.registers[VX] else 0
+            self.registers[VX] = (self.registers[VY] - self.registers[VX]) & 0xFF
 
         elif opcode == '8XYE':  # Shift VX left by 1
-            pass
+            self.registers[0xF] = (self.registers[VX] & 0x80) >> 7
+            self.registers[VX] = (self.registers[VX] << 1) & 0xFF
 
         elif opcode == '9XY0':  # Skip next instruction if VX != VY
             if self.registers[VX] != self.registers[VY]:
@@ -199,15 +215,18 @@ class CPU:
             self.index_register = address
 
         elif opcode == 'BNNN':  # Jump to address NNN + V0
-            pass
+            self.program_counter = address + self.registers[0x0]
 
         elif opcode == 'CXNN':  # Set VX to random byte AND NN
-            pass
+            random_value = random.randint(0, 255)
+            self.registers[VX] = random_value & last_byte
 
         elif opcode == 'DXYN':  # Draw sprite at position VX, VY with N bytes of sprite data
             x = self.registers[VX]
             y = self.registers[VY]
             height = last_nibble
+            if height == 0:
+                height = 16
 
             sprite_data = []
             for i in range(height):
@@ -217,42 +236,55 @@ class CPU:
             self.registers[0xF] = 1 if collision else False
 
         elif opcode == 'EX9E':  # Skip next instruction if key with the value of VX is pressed
-            pass
+            key = self.registers[VX]
+            if keys[key]:
+                self.program_counter += 2
 
         elif opcode == 'EXA1':  # Skip next instruction if key with the value of VX is not pressed
-            pass
+            key = self.registers[VX]
+            if not keys[key]:
+                self.program_counter += 2
 
         elif opcode == 'FX07':  # Set VX to the value of the delay timer
-            pass
+            self.registers[VX] = self.delay_timer
 
         elif opcode == 'FX0A':  # Wait for a keypress and store the result in VX
-            pass
+            if any(keys):
+                for i in range(16):
+                    if keys[i]:
+                        self.registers[VX] = i
+                        break
+            else:
+                self.program_counter -= 2
 
         elif opcode == 'FX15':  # Set delay timer to VX
-            pass
+            self.delay_timer = self.registers[VX]
 
         elif opcode == 'FX18':  # Set sound timer to VX
-            pass
+            self.sound_timer = self.registers[VX]
 
         elif opcode == 'FX1E':  # Add VX to I
             self.index_register += self.registers[VX]
 
         elif opcode == 'FX29':  # Set I to the location of the sprite for the character in VX
-            pass
+            self.index_register = self.registers[VX] * 5
 
         elif opcode == 'FX33':  # Store BCD representation of VX at addresses I, I+1, and I+2
-            pass
+            value = self.registers[VX]
+            memory[self.index_register] = value // 100
+            memory[self.index_register + 1] = (value // 10) % 10
+            memory[self.index_register + 2] = value % 10
 
         elif opcode == 'FX55':  # Store registers V0-VX at memory location I
-            pass
+            for i in range(VX + 1): memory[self.index_register + i] = self.registers[i]
 
         elif opcode == 'FX65':  # Fill registers V0-VX with values stored at memory location I
-            pass
+            for i in range(VX + 1): self.registers[i] = memory[self.index_register + i]
 
         elif opcode == 'UNKNOWN':
             pass
 
-    def cycle(self, memory, display):
+    def cycle(self, memory, display, keys):
         instruction = self.fetch(memory)
         decoded_instruction = self.decode(instruction)
-        self.execute(decoded_instruction, memory, display)
+        self.execute(decoded_instruction, memory, display, keys)

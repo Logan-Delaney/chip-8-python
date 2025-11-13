@@ -36,7 +36,7 @@ class Display:
     def render(self, screen):
         black = (0, 0, 0)
         white = (255, 255, 255)
-        scale_factor = 10
+        scale_factor = 20
         screen.fill(black)
         for y in range(32):
             for x in range(64):
