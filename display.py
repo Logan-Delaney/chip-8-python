@@ -1,9 +1,10 @@
 import pygame
+from constants import WIDTH, HEIGHT, SCALE_FACTOR
 
 class Display:
     def __init__(self):
-        self.width = 64
-        self.height = 32
+        self.width = WIDTH
+        self.height = HEIGHT
         self.display = [[0 for _ in range(self.width)] for _ in range(self.height)]
 
     def clear(self):
@@ -36,11 +37,10 @@ class Display:
     def render(self, screen):
         black = (0, 0, 0)
         white = (255, 255, 255)
-        scale_factor = 20
         screen.fill(black)
         for y in range(32):
             for x in range(64):
-                xx = x * scale_factor
-                yy = y * scale_factor
+                xx = x * SCALE_FACTOR
+                yy = y * SCALE_FACTOR
                 if self.display[y][x]:
-                    pygame.draw.rect(screen, white, (xx, yy, scale_factor, scale_factor))
+                    pygame.draw.rect(screen, white, (xx, yy, SCALE_FACTOR, SCALE_FACTOR))
